@@ -1,18 +1,60 @@
+import { db } from '../db';
+import { productsTable } from '../db/schema';
 import { type UpdateProductInput, type Product } from '../schema';
+import { eq } from 'drizzle-orm';
 
 export const updateProduct = async (input: UpdateProductInput): Promise<Product> => {
-  // This is a placeholder declaration! Real code should be implemented here.
-  // The goal of this handler is updating product information including enable/disable status
-  // Should validate product exists and update only provided fields
-  return Promise.resolve({
-    id: input.id,
-    name: 'Updated Product',
-    description: null,
-    type: 'physical',
-    price: 0,
-    stock_quantity: 0,
-    is_enabled: input.is_enabled ?? true,
-    created_at: new Date(),
-    updated_at: new Date()
-  } as Product);
+  try {
+    // Check if product exists first
+    const existingProducts = await db.select()
+      .from(productsTable)
+      .where(eq(productsTable.id, input.id))
+      .execute();
+
+    if (existingProducts.length === 0) {
+      throw new Error(`Product with id ${input.id} not found`);
+    }
+
+    // Build update object with only provided fields
+    const updateData: any = {
+      updated_at: new Date()
+    };
+
+    if (input.name !== undefined) {
+      updateData.name = input.name;
+    }
+
+    if (input.description !== undefined) {
+      updateData.description = input.description;
+    }
+
+    if (input.price !== undefined) {
+      updateData.price = input.price.toString(); // Convert number to string for numeric column
+    }
+
+    if (input.stock_quantity !== undefined) {
+      updateData.stock_quantity = input.stock_quantity;
+    }
+
+    if (input.is_enabled !== undefined) {
+      updateData.is_enabled = input.is_enabled;
+    }
+
+    // Update the product
+    const result = await db.update(productsTable)
+      .set(updateData)
+      .where(eq(productsTable.id, input.id))
+      .returning()
+      .execute();
+
+    // Convert numeric fields back to numbers before returning
+    const product = result[0];
+    return {
+      ...product,
+      price: parseFloat(product.price) // Convert string back to number
+    };
+  } catch (error) {
+    console.error('Product update failed:', error);
+    throw error;
+  }
 };
